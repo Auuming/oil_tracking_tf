@@ -1,0 +1,83 @@
+data "archive_file" "api_lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/lambda/package_api"
+  output_path = "${path.module}/lambda/api_handler.zip"
+}
+
+data "archive_file" "fetch_lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/lambda/package_fetch"
+  output_path = "${path.module}/lambda/fetch_prices.zip"
+}
+
+resource "aws_lambda_function" "api" {
+  function_name    = "${local.name}-api"
+  role             = aws_iam_role.lambda_exec.arn
+  runtime          = "python3.12"
+  handler          = "api_handler.lambda_handler"
+  filename         = data.archive_file.api_lambda_zip.output_path
+  source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
+  
+  # Use these specific verified ARNs for Tokyo (ap-northeast-1)
+  layers = [
+    "arn:aws:lambda:ap-northeast-1:336392948345:layer:AWSSDKPandas-Python312:14"
+  ]
+  
+  timeout = 30
+
+  vpc_config {
+    # Move the Lambda to the new Private Subnet
+    subnet_ids         = [aws_subnet.private.id]
+    
+    # Use the dedicated Lambda Security Group you already created!
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
+  environment {
+    variables = {
+      USERS_TABLE         = aws_dynamodb_table.users.name
+      SUBSCRIPTIONS_TABLE = aws_dynamodb_table.subscriptions.name
+      ALERTS_TOPIC_ARN    = aws_sns_topic.alerts.arn
+      REDIS_ENDPOINT      = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT          = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
+      INFLUXDB_ENDPOINT   = aws_timestreaminfluxdb_db_instance.oil_prices.endpoint
+      INFLUXDB_ORG        = var.influxdb_organization
+      INFLUXDB_BUCKET     = var.influxdb_bucket
+      INFLUXDB_USER       = var.influxdb_username
+      INFLUXDB_PASSWORD   = var.influxdb_password
+      INFLUXDB_TOKEN      = data.external.influx_token.result.token
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function" "fetch" {
+  function_name    = "${local.name}-fetch-prices"
+  role             = aws_iam_role.lambda_exec.arn
+  runtime          = "python3.12"
+  handler          = "fetch_prices.lambda_handler"
+  filename         = data.archive_file.fetch_lambda_zip.output_path
+  source_code_hash = data.archive_file.fetch_lambda_zip.output_base64sha256
+  
+  # Use the same layers here
+  layers = [
+    "arn:aws:lambda:ap-northeast-1:336392948345:layer:AWSSDKPandas-Python312:14"
+  ]
+  
+  timeout = 60
+
+  environment {
+    variables = {
+      ALERTS_TOPIC_ARN  = aws_sns_topic.alerts.arn
+      INFLUXDB_ENDPOINT = aws_timestreaminfluxdb_db_instance.oil_prices.endpoint
+      INFLUXDB_ORG      = var.influxdb_organization
+      INFLUXDB_BUCKET   = var.influxdb_bucket
+      INFLUXDB_USER     = var.influxdb_username
+      INFLUXDB_PASSWORD = var.influxdb_password
+      INFLUXDB_TOKEN    = data.external.influx_token.result.token
+    }
+  }
+
+  tags = local.tags
+}

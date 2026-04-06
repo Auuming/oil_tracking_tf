@@ -1,0 +1,15 @@
+resource "aws_timestreamwrite_database" "oil_prices" {
+  database_name = replace("${local.name}-timestream", "-", "_")
+  tags          = local.tags
+}
+
+resource "aws_timestreamwrite_table" "oil_prices" {
+  database_name = aws_timestreamwrite_database.oil_prices.database_name
+  table_name    = "oil_prices"
+  tags          = local.tags
+
+  retention_properties {
+    memory_store_retention_period_in_hours  = 24
+    magnetic_store_retention_period_in_days = 365
+  }
+}
