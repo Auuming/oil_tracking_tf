@@ -1,102 +1,113 @@
-import json
 import os
+import json
+import boto3
 import redis
-from influxdb_client import InfluxDBClient
+from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
-def _response(status_code, payload):
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-        },
-        "body": json.dumps(payload)
-    }
+# Helper to convert DynamoDB Decimals to standard floats for JSON
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+dynamodb = boto3.resource('dynamodb')
+prices_table = dynamodb.Table(os.getenv('PRICES_TABLE'))
+users_table = dynamodb.Table(os.getenv('USERS_TABLE'))
+
+# Setup SNS Client
+sns = boto3.client('sns')
+alerts_topic_arn = os.getenv('ALERTS_TOPIC_ARN')
+
+# Setup Redis connection (initialized outside the handler for warm starts)
+redis_host = os.getenv('REDIS_ENDPOINT')
+redis_port = int(os.getenv('REDIS_PORT', 6379))
+cache = redis.Redis(host=redis_host, port=redis_port, decode_responses=True) if redis_host else None
 
 def lambda_handler(event, context):
-    endpoint = os.getenv('INFLUXDB_ENDPOINT')
-    bucket = os.getenv('INFLUXDB_BUCKET')
+    route_key = event.get('routeKey', '')
     
-    # Retrieve Redis Environment Variables
-    redis_endpoint = os.getenv('REDIS_ENDPOINT')
-    redis_port = int(os.getenv('REDIS_PORT', 6379))
-
-    query_params = event.get("queryStringParameters") or {}
-    retailer = query_params.get("retailer", "PTT")
-    oil_type = query_params.get("type", "Diesel")
-
-    # 1. Define a unique Cache Key
-    cache_key = f"prices:{retailer}:{oil_type}"
-    r = None
+    # Required headers for CORS so your S3 frontend can talk to API Gateway
+    headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+    }
     
-    # 2. Try to fetch from Redis Cache FIRST
-    try:
-        r = redis.Redis(
-            host=redis_endpoint, 
-            port=redis_port, 
-            decode_responses=True,
-            socket_timeout=2,          
-            socket_connect_timeout=2   
-        )
-        cached_data = r.get(cache_key)
+    if route_key == "GET /prices":
+        # 1. Get raw inputs from frontend (e.g., "PTT" and "Gasohol 95")
+        query_params = event.get('queryStringParameters', {})
+        retailer = query_params.get('retailer', 'PTT')
+        oil_type = query_params.get('oilType', 'Gasohol 95')
         
-        if cached_data:
-            # Cache HIT: Return immediately without touching InfluxDB
-            return _response(200, {
-                "data": json.loads(cached_data),
-                "count": len(json.loads(cached_data)),
-                "info": "Data retrieved from Redis Cache"
-            })
-    except Exception as e:
-        print(f"Redis cache error: {e}") # Log error but continue to fallback to database
-
-    # 3. Cache MISS: Fetch from InfluxDB (Timestream)
-    try:
-        client = InfluxDBClient(
-            url=f"https://{endpoint}:8086",
-            token=os.getenv('INFLUXDB_TOKEN'),
-            org=os.getenv('INFLUXDB_ORG'),
-            timeout=10000
-        )
-        query_api = client.query_api()
-
-        query = f'''
-        from(bucket: "{bucket}")
-          |> range(start: -24h)
-          |> filter(fn: (r) => r["_measurement"] == "oil_prices")
-          |> filter(fn: (r) => r["retailer"] == "{retailer}")
-          |> filter(fn: (r) => r["type"] == "{oil_type}")
-        '''
-
-        tables = query_api.query(query)
-        results = []
-
-        for table in tables:
-            for record in table.records:
-                results.append({
-                    "timestamp": record.get_time().isoformat(),
-                    "price": record.get_value()
-                })
-
-        # 4. Save the results back into Redis Cache for future requests
-        # We set an expiration of 300 seconds (5 minutes) so the cache eventually refreshes
-        if r and results:
+        # 2. Normalize to match DB Partition Key (e.g., "ptt#gasohol_95")
+        norm_retailer = retailer.lower()
+        norm_oil = oil_type.lower().replace(" ", "_")
+        partition_key = f"{norm_retailer}#{norm_oil}"
+        
+        # 3. CHECK REDIS CACHE FIRST
+        if cache:
             try:
-                r.setex(cache_key, 300, json.dumps(results))
+                cached_data = cache.get(partition_key)
+                if cached_data:
+                    print("Cache Hit!")
+                    return {
+                        "statusCode": 200,
+                        "headers": headers,
+                        "body": cached_data # Already a JSON string
+                    }
             except Exception as e:
-                print(f"Failed to write to Redis: {e}")
+                print(f"Redis cache error: {e}")
 
-        return _response(200, {
-            "data": results,
-            "count": len(results),
-            "info": "Query successful, fetched from InfluxDB"
-        })
-
-    except Exception as e:
-        return _response(500, {
-            "error": str(e),
-            "debug_endpoint": endpoint
-        })
-    finally:
-        if 'client' in locals():
-            client.close()
+        # 4. CACHE MISS: Query DynamoDB
+        print("Cache Miss! Fetching from DynamoDB...")
+        response = prices_table.query(
+            KeyConditionExpression=Key('RetailerOilType').eq(partition_key)
+        )
+        
+        # 5. Format the data to exactly what app.js expects: [{ time: "...", price: ... }]
+        items = response.get('Items', [])
+        formatted_data = [
+            {"time": item.get('Time', item['Date']), "price": float(item['Price'])} 
+            for item in items
+        ]
+        
+        json_response = json.dumps(formatted_data, cls=DecimalEncoder)
+        
+        # 6. Save back to Redis (Cache for 1 hour / 3600 seconds)
+        if cache:
+            try:
+                cache.setex(partition_key, 3600, json_response)
+            except Exception as e:
+                print(f"Redis save error: {e}")
+                
+        return {
+            "statusCode": 200,
+            "headers": headers,
+            "body": json_response
+        }
+        
+    # Note: app.js sends POST to /alerts, so we match that route here
+    elif route_key == "POST /alerts": 
+        body = json.loads(event.get('body', '{}'))
+        email = body.get('email')
+        
+        if email:
+            # 1. Store the whole alert payload inside DynamoDB
+            users_table.put_item(Item={'Email': email, 'AlertConfig': body})
+            
+            # 2. Automatically subscribe the user to the SNS Topic
+            if alerts_topic_arn:
+                sns.subscribe(
+                    TopicArn=alerts_topic_arn,
+                    Protocol='email',
+                    Endpoint=email
+                )
+                
+            return {
+                "statusCode": 200, 
+                "headers": headers, 
+                "body": json.dumps({"message": f"Alert set! Please check {email} to confirm your subscription."})
+            }
+            
+    return {"statusCode": 404, "headers": headers, "body": json.dumps({"message": "Not Found"})}
