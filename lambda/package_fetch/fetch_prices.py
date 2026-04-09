@@ -33,7 +33,7 @@ def lambda_handler(event, context):
     url = "https://api.chnwt.dev/thai-oil-api/latest"
     
     try:
-        # 1. Fetch data from the external API
+        # Fetch data from the external API
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode())
@@ -45,7 +45,7 @@ def lambda_handler(event, context):
         
         latest_prices = {}
         
-        # 2. Write formatted data to DynamoDB
+        # Write formatted data to DynamoDB
         with prices_table.batch_writer() as batch:
             for station, oil_data in stations.items():
                 retailer_name = format_retailer(station)
@@ -74,7 +74,7 @@ def lambda_handler(event, context):
                         }
                     )
                     
-        # 3. Clear Redis Cache so the API serves fresh data immediately
+        # Clear Redis Cache so the API serves fresh data immediately
         if cache:
             try:
                 cache.flushall()
@@ -82,7 +82,7 @@ def lambda_handler(event, context):
             except Exception as e:
                 print(f"Redis Error: {e}")
 
-        # 4. Process User Alerts
+        # Process User Alerts
         if alerts_topic_arn and os.getenv('USERS_TABLE'):
             users = users_table.scan().get('Items', [])
             for user in users:
@@ -95,7 +95,6 @@ def lambda_handler(event, context):
                 if isinstance(configs, dict):
                     configs = [configs]
                 
-                # ---> NEW: Create a list to hold all triggered messages for THIS user
                 triggered_messages = []
                 
                 # Loop through the array of alerts for this specific user
@@ -110,7 +109,6 @@ def lambda_handler(event, context):
                         
                         # Trigger logic
                         if (condition == '<=' and current_price <= target_price) or (condition == '>=' and current_price >= target_price):
-                            # ---> NEW: Append the message to our list instead of sending immediately
                             triggered_messages.append(
                                 f"- {config.get('retailer')} {config.get('oilType')}: {current_price} THB/L (Condition: {condition} {target_price})"
                             )
@@ -129,7 +127,6 @@ def lambda_handler(event, context):
                         f"Stay safe on the road!"
                     )
                     
-                    # ---> NEW: Publish with MessageAttributes so only the specific user gets it
                     sns.publish(
                         TopicArn=alerts_topic_arn, 
                         Subject=subject, 

@@ -1,4 +1,4 @@
-# 1. Base Role for Lambda
+# Base Role for Lambda
 resource "aws_iam_role" "lambda_exec" {
   name = "${local.name}-lambda-exec-role"
 
@@ -12,19 +12,19 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
-# 2. Allow Lambda to write to CloudWatch Logs
+# Allow Lambda to write to CloudWatch Logs
 resource "aws_iam_role_policy_attachment" "lambda_basic" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# 3. Allow Lambda to run inside the VPC (Required so it can reach Redis)
+# Allow Lambda to run inside the VPC (Required so it can reach Redis)
 resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# 4. Allow Lambda to read/write DynamoDB and publish to SNS
+# Allow Lambda to read/write DynamoDB and publish to SNS
 resource "aws_iam_policy" "lambda_data_policy" {
   name        = "${local.name}-lambda-data-policy"
   description = "Allow Lambda to access DynamoDB and send SNS alerts"

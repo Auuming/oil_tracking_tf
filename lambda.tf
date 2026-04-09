@@ -18,10 +18,7 @@ resource "aws_lambda_function" "api" {
   filename         = data.archive_file.api_lambda_zip.output_path
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
   
-  # Use these specific verified ARNs for Tokyo (ap-northeast-1)
-  layers = [
-    "arn:aws:lambda:ap-northeast-1:336392948345:layer:AWSSDKPandas-Python312:14"
-  ]
+  layers = [var.pandas_layer_arn]
   
   timeout = 30
 
@@ -29,7 +26,7 @@ resource "aws_lambda_function" "api" {
     # Move the Lambda to the new Private Subnet
     subnet_ids         = [aws_subnet.private.id]
     
-    # Use the dedicated Lambda Security Group you already created!
+    # Use already created dedicated Lambda Security Group
     security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
@@ -54,10 +51,7 @@ resource "aws_lambda_function" "fetch" {
   filename         = data.archive_file.fetch_lambda_zip.output_path
   source_code_hash = data.archive_file.fetch_lambda_zip.output_base64sha256
   
-  # Use the same layers here
-  layers = [
-    "arn:aws:lambda:ap-northeast-1:336392948345:layer:AWSSDKPandas-Python312:14"
-  ]
+  layers = [var.pandas_layer_arn]
   
   timeout = 60
 

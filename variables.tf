@@ -16,6 +16,12 @@ variable "region" {
   default     = "ap-northeast-1"
 }
 
+variable "pandas_layer_arn" {
+  description = "AWS SDK for Pandas layer ARN for ap-northeast-1"
+  type        = string
+  default     = "arn:aws:lambda:ap-northeast-1:336392948345:layer:AWSSDKPandas-Python312:14"
+}
+
 variable "notification_email" {
   description = "Email for SNS subscription"
   type        = string

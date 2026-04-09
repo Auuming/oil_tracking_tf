@@ -28,7 +28,7 @@ def lambda_handler(event, context):
     headers = {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"}
     
     if route_key == "GET /prices":
-        # 1. Check Redis Cache first
+        # Check Redis Cache
         if cache:
             try:
                 cached_data = cache.get("all_prices_grouped")
@@ -36,12 +36,12 @@ def lambda_handler(event, context):
                     return {"statusCode": 200, "headers": headers, "body": cached_data}
             except: pass
                 
-        # 2. Fetch all data from DynamoDB if not in cache
+        # Fetch all data from DynamoDB if not in cache
         try:
             response = prices_table.scan()
             db_items = response.get('Items', [])
             
-            # 3. Group the data to match app.js structure exactly
+            # Group the data to match app.js structure exactly
             grouped_data = {}
             for item in db_items:
                 rot = item.get('RetailerOilType', '')
@@ -64,17 +64,17 @@ def lambda_handler(event, context):
                     "price": float(item['Price'])
                 })
                 
-            # 4. Convert dictionary to a flat list and sort points by time
+            # Convert dictionary to a flat list and sort points by time
             final_list = []
             for rot, group in grouped_data.items():
                 group["points"] = sorted(group["points"], key=lambda x: x["time"])
                 final_list.append(group)
                 
-            # 5. Wrap it in the "items" dictionary for app.js
+            # Wrap it in the "items" dictionary for app.js
             final_response = {"items": final_list}
             json_response = json.dumps(final_response, cls=DecimalEncoder)
             
-            # 6. Save back to Redis cache for 1 hour
+            # Save back to Redis cache for 1 hour
             if cache:
                 try: cache.setex("all_prices_grouped", 3600, json_response)
                 except: pass
@@ -92,16 +92,16 @@ def lambda_handler(event, context):
             email = body.get('email')
             
             if email:
-                # 1. Fetch the existing user data
+                # Fetch the existing user data
                 response = users_table.get_item(Key={'Email': email})
                 existing_user = response.get('Item', {})
                 
-                # 2. Get existing configs, default to empty list. 
+                # Get existing configs, default to empty list. 
                 alert_configs = existing_user.get('AlertConfig', [])
                 if isinstance(alert_configs, dict):
                     alert_configs = [alert_configs]
                     
-                # 3. Check for duplicates based on retailer and oilType
+                # Check for duplicates based on retailer and oilType
                 new_retailer = body.get('retailer')
                 new_oil_type = body.get('oilType')
                 is_updated = False
@@ -112,14 +112,13 @@ def lambda_handler(event, context):
                         is_updated = True
                         break
                 
-                # 4. If it wasn't a duplicate, append the new alert
                 if not is_updated:
                     alert_configs.append(body)
 
-                # 5. Save the updated array back to DynamoDB
+                # Save the updated array back to DynamoDB
                 users_table.put_item(Item={'Email': email, 'AlertConfig': alert_configs})
                 
-                # 6. Process SNS Subscription
+                # Process SNS Subscription
                 if alerts_topic_arn:
                     sns.subscribe(
                         TopicArn=alerts_topic_arn, 

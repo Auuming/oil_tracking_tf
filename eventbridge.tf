@@ -18,7 +18,7 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   source_arn    = aws_cloudwatch_event_rule.price_fetch_schedule.arn
 }
 
-# It tells OpenTofu to trigger the Lambda right after creating it
+# Trigger the Lambda right after creating it
 resource "aws_lambda_invocation" "trigger_fetch_on_deploy" {
   function_name = aws_lambda_function.fetch.function_name
   
@@ -28,8 +28,7 @@ resource "aws_lambda_invocation" "trigger_fetch_on_deploy" {
     "detail-type": "Initial Tofu Deployment Fetch"
   })
 
-  # The triggers block ensures this only runs on the initial creation, 
-  # or when you update the fetch Python script.
+  # Ensures this only runs on the initial creation, or when you update the fetch Python script.
   triggers = {
     redeployment = aws_lambda_function.fetch.source_code_hash
   }
