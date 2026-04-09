@@ -36,6 +36,7 @@ resource "aws_iam_policy" "lambda_data_policy" {
         Effect = "Allow"
         Action = [
           "dynamodb:PutItem",
+          "dynamodb:BatchWriteItem",
           "dynamodb:GetItem",
           "dynamodb:Scan",
           "dynamodb:Query",

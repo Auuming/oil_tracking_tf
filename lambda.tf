@@ -61,11 +61,18 @@ resource "aws_lambda_function" "fetch" {
   
   timeout = 60
 
+  vpc_config {
+    subnet_ids         = [aws_subnet.private.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
   environment {
     variables = {
       ALERTS_TOPIC_ARN = aws_sns_topic.alerts.arn
       USERS_TABLE      = aws_dynamodb_table.users.name
       PRICES_TABLE     = aws_dynamodb_table.prices.name
+      REDIS_ENDPOINT   = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT       = aws_elasticache_cluster.redis.cache_nodes[0].port
     }
   }
 

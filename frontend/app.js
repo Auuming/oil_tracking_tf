@@ -326,7 +326,7 @@ async function fetchHistory() {
     return { items: DEMO_HISTORY, mode: "demo" };
   }
 
-  const response = await fetch(`${CONFIG.API_BASE_URL}/prices/history`);
+  const response = await fetch(`${CONFIG.API_BASE_URL}/prices`);
   if (!response.ok) {
     throw new Error(`History request failed with status ${response.status}`);
   }
