@@ -27,7 +27,7 @@ resource "aws_apigatewayv2_route" "get_prices" {
 
 resource "aws_apigatewayv2_route" "create_subscription" {
   api_id    = aws_apigatewayv2_api.http.id
-  route_key = "POST /subscriptions"
+  route_key = "POST /alerts"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_api.id}"
 }
 

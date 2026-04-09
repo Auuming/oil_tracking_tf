@@ -35,17 +35,11 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      USERS_TABLE         = aws_dynamodb_table.users.name
-      SUBSCRIPTIONS_TABLE = aws_dynamodb_table.subscriptions.name
-      ALERTS_TOPIC_ARN    = aws_sns_topic.alerts.arn
-      REDIS_ENDPOINT      = aws_elasticache_cluster.redis.cache_nodes[0].address
-      REDIS_PORT          = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
-      INFLUXDB_ENDPOINT   = aws_timestreaminfluxdb_db_instance.oil_prices.endpoint
-      INFLUXDB_ORG        = var.influxdb_organization
-      INFLUXDB_BUCKET     = var.influxdb_bucket
-      INFLUXDB_USER       = var.influxdb_username
-      INFLUXDB_PASSWORD   = var.influxdb_password
-      INFLUXDB_TOKEN      = data.external.influx_token.result.token
+      USERS_TABLE      = aws_dynamodb_table.users.name
+      PRICES_TABLE     = aws_dynamodb_table.prices.name
+      ALERTS_TOPIC_ARN = aws_sns_topic.alerts.arn
+      REDIS_ENDPOINT   = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT       = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
     }
   }
 
@@ -67,15 +61,18 @@ resource "aws_lambda_function" "fetch" {
   
   timeout = 60
 
+  vpc_config {
+    subnet_ids         = [aws_subnet.private.id]
+    security_group_ids = [aws_security_group.lambda_sg.id]
+  }
+
   environment {
     variables = {
-      ALERTS_TOPIC_ARN  = aws_sns_topic.alerts.arn
-      INFLUXDB_ENDPOINT = aws_timestreaminfluxdb_db_instance.oil_prices.endpoint
-      INFLUXDB_ORG      = var.influxdb_organization
-      INFLUXDB_BUCKET   = var.influxdb_bucket
-      INFLUXDB_USER     = var.influxdb_username
-      INFLUXDB_PASSWORD = var.influxdb_password
-      INFLUXDB_TOKEN    = data.external.influx_token.result.token
+      ALERTS_TOPIC_ARN = aws_sns_topic.alerts.arn
+      USERS_TABLE      = aws_dynamodb_table.users.name
+      PRICES_TABLE     = aws_dynamodb_table.prices.name
+      REDIS_ENDPOINT   = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT       = aws_elasticache_cluster.redis.cache_nodes[0].port
     }
   }
 
