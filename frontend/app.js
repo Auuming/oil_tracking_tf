@@ -124,14 +124,24 @@ function setSelectOptions(selectElement, values) {
   });
 }
 
+function updateOilTypesDropdown(retailerSelectElem, oilTypeSelectElem) {
+  const selectedRetailer = retailerSelectElem.value;
+  const retailerData = allHistory.filter(item => item.retailer === selectedRetailer);
+  const availableOilTypes = uniqueValues(retailerData, "oilType");
+  
+  setSelectOptions(oilTypeSelectElem, availableOilTypes);
+}
+
 function populateControls() {
   const retailers = uniqueValues(allHistory, "retailer");
-  const oilTypes = uniqueValues(allHistory, "oilType");
 
   setSelectOptions(retailerSelect, retailers);
-  setSelectOptions(oilTypeSelect, oilTypes);
   setSelectOptions(alertRetailerSelect, retailers);
-  setSelectOptions(alertOilTypeSelect, oilTypes);
+  
+  if (retailers.length > 0) {
+    updateOilTypesDropdown(retailerSelect, oilTypeSelect);
+    updateOilTypesDropdown(alertRetailerSelect, alertOilTypeSelect);
+  }
 }
 
 function getLatestItems() {
@@ -418,5 +428,7 @@ addSeriesBtn.addEventListener("click", addSelectedSeries);
 clearSeriesBtn.addEventListener("click", clearAllSeries);
 refreshBtn.addEventListener("click", loadData);
 alertForm.addEventListener("submit", submitAlert);
+retailerSelect.addEventListener("change", () => updateOilTypesDropdown(retailerSelect, oilTypeSelect));
+alertRetailerSelect.addEventListener("change", () => updateOilTypesDropdown(alertRetailerSelect, alertOilTypeSelect));
 
 loadData();
