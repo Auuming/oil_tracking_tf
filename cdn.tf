@@ -1,6 +1,4 @@
-# cdn.tf
-
-# 1. Origin Access Control (Ensures S3 is only accessible via CloudFront)
+# Origin Access Control (Ensures S3 is only accessible via CloudFront)
 resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   name                              = "${local.name}-frontend-oac"
   description                       = "OAC for Frontend S3 Bucket"
@@ -9,7 +7,7 @@ resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   signing_protocol                  = "sigv4"
 }
 
-# 2. CloudFront CDN Distribution
+# CloudFront CDN Distribution
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -17,7 +15,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   price_class         = "PriceClass_100" # Lowest cost tier
 
   origin {
-    # This references the Bucket created in s3.tf
+    # s3 bucket
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.frontend.bucket}"
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend_oac.id

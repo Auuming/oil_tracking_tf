@@ -1,96 +1,40 @@
-resource "aws_security_group" "ec2" {
-  name        = "${local.name}-ec2-sg"
-  description = "Allow web and SSH for frontend"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(local.tags, { Name = "${local.name}-ec2-sg" })
-}
-
-resource "aws_security_group" "redis" {
-  name        = "${local.name}-redis-sg"
-  description = "Allow Redis from frontend EC2"
-  vpc_id      = data.aws_vpc.default.id
-
-  # 1. Keep the existing rule for EC2
-  ingress {
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ec2.id]
-  }
-
-  # 2. ADD this new rule for your API Lambda
-  ingress {
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
-    security_groups = [aws_security_group.lambda_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(local.tags, { Name = "${local.name}-redis-sg" })
-}
-
 resource "aws_security_group" "lambda_sg" {
   name        = "${local.name}-lambda-sg"
   description = "Security group for Lambda functions"
   vpc_id      = data.aws_vpc.default.id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = merge(local.tags, { Name = "${local.name}-lambda-sg" })
+  tags        = merge(local.tags, { Name = "${local.name}-lambda-sg" })
 }
 
-resource "aws_security_group" "influx_sg" {
-  name        = "${local.name}-influx-sg"
-  description = "Allow InfluxDB traffic"
+resource "aws_security_group" "redis" {
+  name        = "${local.name}-redis-sg"
+  description = "Allow Redis from Lambda"
   vpc_id      = data.aws_vpc.default.id
+  tags        = merge(local.tags, { Name = "${local.name}-redis-sg" })
+}
 
-  # Allow HTTPS/Influx API from anywhere
-  ingress {
-    from_port   = 8086
-    to_port     = 8086
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# Allow Lambda to reach the Internet
+resource "aws_vpc_security_group_egress_rule" "lambda_to_internet" {
+  security_group_id = aws_security_group.lambda_sg.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  tags = merge(local.tags, { Name = "${local.name}-influx-sg" })
+# Allow Lambda to send data to Redis
+resource "aws_vpc_security_group_egress_rule" "lambda_to_redis" {
+  security_group_id            = aws_security_group.lambda_sg.id
+  referenced_security_group_id = aws_security_group.redis.id
+  ip_protocol                  = "tcp"
+  from_port                    = 6379
+  to_port                      = 6379
+}
+
+# Allow Redis to accept data from Lambda
+resource "aws_vpc_security_group_ingress_rule" "redis_from_lambda" {
+  security_group_id            = aws_security_group.redis.id
+  referenced_security_group_id = aws_security_group.lambda_sg.id
+  ip_protocol                  = "tcp"
+  from_port                    = 6379
+  to_port                      = 6379
 }

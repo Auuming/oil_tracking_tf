@@ -1,6 +1,4 @@
-# dynamodb.tf
-
-# 1. Table for tracking Oil Prices
+# Table for tracking Oil Prices
 resource "aws_dynamodb_table" "prices" {
   name         = "${local.name}-prices"
   billing_mode = "PAY_PER_REQUEST"
@@ -22,7 +20,7 @@ resource "aws_dynamodb_table" "prices" {
   tags = local.tags
 }
 
-# 2. Table for tracking Users/Emails for SNS
+# Table for tracking Users/Emails for SNS
 resource "aws_dynamodb_table" "users" {
   name         = "${local.name}-users"
   billing_mode = "PAY_PER_REQUEST"
