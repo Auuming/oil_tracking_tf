@@ -8,19 +8,23 @@ const DEMO_HISTORY = [
       { time: "2026-04-03 09:00", price: 37.0 },
       { time: "2026-04-04 09:00", price: 37.05 },
       { time: "2026-04-05 09:00", price: 37.15 },
-      { time: "2026-04-06 09:00", price: 37.24 }
+      { time: "2026-04-06 09:00", price: 37.24 },
+      { time: "2026-04-07 09:00", price: 37.30 },
+      { time: "2026-04-08 09:00", price: 37.35 }
     ]
   },
   {
     retailer: "PTT",
-    oilType: "Diesel",
+    oilType: "Diesel B7",
     points: [
       { time: "2026-04-01 09:00", price: 31.4 },
       { time: "2026-04-02 09:00", price: 31.5 },
       { time: "2026-04-03 09:00", price: 31.62 },
       { time: "2026-04-04 09:00", price: 31.7 },
       { time: "2026-04-05 09:00", price: 31.82 },
-      { time: "2026-04-06 09:00", price: 31.94 }
+      { time: "2026-04-06 09:00", price: 31.94 },
+      { time: "2026-04-07 09:00", price: 32.00 },
+      { time: "2026-04-08 09:00", price: 32.05 }
     ]
   },
   {
@@ -32,7 +36,9 @@ const DEMO_HISTORY = [
       { time: "2026-04-03 09:00", price: 36.9 },
       { time: "2026-04-04 09:00", price: 36.95 },
       { time: "2026-04-05 09:00", price: 37.05 },
-      { time: "2026-04-06 09:00", price: 37.14 }
+      { time: "2026-04-06 09:00", price: 37.14 },
+      { time: "2026-04-07 09:00", price: 37.20 },
+      { time: "2026-04-08 09:00", price: 37.25 }
     ]
   },
   {
@@ -44,7 +50,9 @@ const DEMO_HISTORY = [
       { time: "2026-04-03 09:00", price: 31.38 },
       { time: "2026-04-04 09:00", price: 31.44 },
       { time: "2026-04-05 09:00", price: 31.56 },
-      { time: "2026-04-06 09:00", price: 31.64 }
+      { time: "2026-04-06 09:00", price: 31.64 },
+      { time: "2026-04-07 09:00", price: 31.70 },
+      { time: "2026-04-08 09:00", price: 31.75 }
     ]
   },
   {
@@ -56,7 +64,9 @@ const DEMO_HISTORY = [
       { time: "2026-04-03 09:00", price: 37.82 },
       { time: "2026-04-04 09:00", price: 37.9 },
       { time: "2026-04-05 09:00", price: 37.96 },
-      { time: "2026-04-06 09:00", price: 38.04 }
+      { time: "2026-04-06 09:00", price: 38.04 },
+      { time: "2026-04-07 09:00", price: 38.10 },
+      { time: "2026-04-08 09:00", price: 38.15 }
     ]
   },
   {
@@ -68,7 +78,9 @@ const DEMO_HISTORY = [
       { time: "2026-04-03 09:00", price: 32.0 },
       { time: "2026-04-04 09:00", price: 32.08 },
       { time: "2026-04-05 09:00", price: 32.16 },
-      { time: "2026-04-06 09:00", price: 32.24 }
+      { time: "2026-04-06 09:00", price: 32.24 },
+      { time: "2026-04-07 09:00", price: 32.30 },
+      { time: "2026-04-08 09:00", price: 32.35 }
     ]
   }
 ];
@@ -259,13 +271,17 @@ function renderChart() {
     return;
   }
 
-  const labels = selectedSeries[0].points.map(point => point.time);
+  const allDates = selectedSeries.flatMap(s => s.points.map(p => p.time));
+  const labels = [...new Set(allDates)].sort();
 
   const datasets = selectedSeries.map(series => ({
     label: getSeriesLabel(series),
-    data: series.points.map(point => point.price),
+    data: labels.map(dateLabel => {
+      const point = series.points.find(p => p.time === dateLabel);
+      return point ? point.price : null; 
+    }),
     tension: 0.25,
-    fill: false
+    spanGaps: true
   }));
 
   chart = new Chart(canvas, {
@@ -336,14 +352,45 @@ async function fetchHistory() {
     return { items: DEMO_HISTORY, mode: "demo" };
   }
 
-  const response = await fetch(`${CONFIG.API_BASE_URL}/prices`);
-  if (!response.ok) {
-    throw new Error(`History request failed with status ${response.status}`);
-  }
+  try {
+    const response = await fetch(`${CONFIG.API_BASE_URL}/prices`);
+    if (!response.ok) {
+      throw new Error(`History request failed with status ${response.status}`);
+    }
 
-  const data = await response.json();
-  backendStatus.textContent = "Connected";
-  return { items: data.items || [], mode: "api" };
+    const data = await response.json();
+    const apiItems = data.items || [];
+    const mergedItems = [];
+    const demoCopy = JSON.parse(JSON.stringify(DEMO_HISTORY));
+
+    apiItems.forEach(apiItem => {
+      const demoMatch = demoCopy.find(
+        d => d.retailer.trim().toUpperCase() === apiItem.retailer.trim().toUpperCase() && 
+             d.oilType.trim().toUpperCase() === apiItem.oilType.trim().toUpperCase()
+      );
+
+      if (demoMatch) {
+        apiItem.points = [...demoMatch.points, ...apiItem.points];
+
+        const index = demoCopy.indexOf(demoMatch);
+        demoCopy.splice(index, 1);
+      }
+      
+      mergedItems.push(apiItem);
+    });
+
+    mergedItems.push(...demoCopy);
+
+    backendStatus.textContent = "Connected";
+    console.log(`mergedItems:`, mergedItems);
+    return { items: mergedItems, mode: "api" };
+
+  } catch (error) {
+    console.error("API connection failed:", error);
+    // If the API fails for any reason, safely fall back to pure Demo Mode
+    backendStatus.textContent = "Demo Mode (API Failed)";
+    return { items: DEMO_HISTORY, mode: "demo" };
+  }
 }
 
 async function loadData() {
