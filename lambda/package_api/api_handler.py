@@ -93,6 +93,6 @@ def lambda_handler(event, context):
             users_table.put_item(Item={'Email': email, 'AlertConfig': body})
             if alerts_topic_arn:
                 sns.subscribe(TopicArn=alerts_topic_arn, Protocol='email', Endpoint=email)
-            return {"statusCode": 200, "headers": headers, "body": json.dumps({"message": f"Alert set for {email}!"})}
+            return {"statusCode": 200, "headers": headers, "body": json.dumps({"message": f"Confirmation sent to {email}! Please click the link in the email to start receiving your price alerts."})}
             
     return {"statusCode": 404, "headers": headers, "body": json.dumps({"message": "Not Found"})}
