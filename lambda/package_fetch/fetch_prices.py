@@ -87,22 +87,60 @@ def lambda_handler(event, context):
             users = users_table.scan().get('Items', [])
             for user in users:
                 email = user.get('Email')
-                config = user.get('AlertConfig', {})
-                if not email or not config: continue
+                configs = user.get('AlertConfig', [])
                 
-                # Reconstruct the lookup key based on user config
-                lookup_key = f"{config.get('retailer')}#{config.get('oilType')}"
-                current_price = latest_prices.get(lookup_key)
+                if not email or not configs: continue
                 
-                if current_price is not None:
-                    target_price = Decimal(str(config.get('targetPrice', 0)))
-                    condition = config.get('condition', '<=')
+                # Handle old data format just in case
+                if isinstance(configs, dict):
+                    configs = [configs]
+                
+                # ---> NEW: Create a list to hold all triggered messages for THIS user
+                triggered_messages = []
+                
+                # Loop through the array of alerts for this specific user
+                for config in configs:
+                    # Reconstruct the lookup key based on user config
+                    lookup_key = f"{config.get('retailer')}#{config.get('oilType')}"
+                    current_price = latest_prices.get(lookup_key)
                     
-                    # Trigger logic
-                    if (condition == '<=' and current_price <= target_price) or (condition == '>=' and current_price >= target_price):
-                        subject = f"Oil Price Alert: {config.get('retailer')} {config.get('oilType')}"
-                        message = f"Hello!\\n\\nYour alert for {config.get('retailer')} {config.get('oilType')} has been triggered.\\nCurrent Price: {current_price} THB/L"
-                        sns.publish(TopicArn=alerts_topic_arn, Subject=subject, Message=message)
+                    if current_price is not None:
+                        target_price = Decimal(str(config.get('targetPrice', 0)))
+                        condition = config.get('condition', '<=')
+                        
+                        # Trigger logic
+                        if (condition == '<=' and current_price <= target_price) or (condition == '>=' and current_price >= target_price):
+                            # ---> NEW: Append the message to our list instead of sending immediately
+                            triggered_messages.append(
+                                f"- {config.get('retailer')} {config.get('oilType')}: {current_price} THB/L (Condition: {condition} {target_price})"
+                            )
+                
+                # Check if any alerts were triggered after checking all configs
+                if triggered_messages:
+                    subject = "Your Daily Oil Price Alerts"
+                    
+                    # Join the array of messages into a single string with line breaks
+                    combined_alerts_text = "\n".join(triggered_messages)
+                    
+                    message = (
+                        f"Hello!\n\n"
+                        f"The following oil prices have reached your target conditions today:\n\n"
+                        f"{combined_alerts_text}\n\n"
+                        f"Stay safe on the road!"
+                    )
+                    
+                    # ---> NEW: Publish with MessageAttributes so only the specific user gets it
+                    sns.publish(
+                        TopicArn=alerts_topic_arn, 
+                        Subject=subject, 
+                        Message=message,
+                        MessageAttributes={
+                            'target_email': {
+                                'DataType': 'String',
+                                'StringValue': email
+                            }
+                        }
+                    )
                         
         return {"statusCode": 200, "body": "Success"}
         

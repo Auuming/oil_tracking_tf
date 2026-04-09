@@ -86,13 +86,63 @@ def lambda_handler(event, context):
             
     # Handle the Alerts POST endpoint
     elif route_key == "POST /alerts": 
-        body = json.loads(event.get('body', '{}'))
-        email = body.get('email')
-        
-        if email:
-            users_table.put_item(Item={'Email': email, 'AlertConfig': body})
-            if alerts_topic_arn:
-                sns.subscribe(TopicArn=alerts_topic_arn, Protocol='email', Endpoint=email)
-            return {"statusCode": 200, "headers": headers, "body": json.dumps({"message": f"Confirmation sent to {email}! Please click the link in the email to start receiving your price alerts."})}
+        try:
+            body_str = event.get('body', '{}') or '{}'
+            body = json.loads(body_str, parse_float=Decimal)
+            email = body.get('email')
+            
+            if email:
+                # 1. Fetch the existing user data
+                response = users_table.get_item(Key={'Email': email})
+                existing_user = response.get('Item', {})
+                
+                # 2. Get existing configs, default to empty list. 
+                alert_configs = existing_user.get('AlertConfig', [])
+                if isinstance(alert_configs, dict):
+                    alert_configs = [alert_configs]
+                    
+                # 3. Check for duplicates based on retailer and oilType
+                new_retailer = body.get('retailer')
+                new_oil_type = body.get('oilType')
+                is_updated = False
+                
+                for i, config in enumerate(alert_configs):
+                    if config.get('retailer') == new_retailer and config.get('oilType') == new_oil_type:
+                        alert_configs[i] = body
+                        is_updated = True
+                        break
+                
+                # 4. If it wasn't a duplicate, append the new alert
+                if not is_updated:
+                    alert_configs.append(body)
+
+                # 5. Save the updated array back to DynamoDB
+                users_table.put_item(Item={'Email': email, 'AlertConfig': alert_configs})
+                
+                # 6. Process SNS Subscription
+                if alerts_topic_arn:
+                    sns.subscribe(
+                        TopicArn=alerts_topic_arn, 
+                        Protocol='email', 
+                        Endpoint=email,
+                        Attributes={
+                            'FilterPolicy': json.dumps({'target_email': [email]})
+                        }
+                    )
+                    
+                return {"statusCode": 200, "headers": headers, "body": json.dumps({"message": f"Alert saved for {email}! Please ensure you have confirmed your SNS subscription."})}
+            else:
+                return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "Missing email in request body."})}
+
+        except Exception as e:
+            import traceback
+            return {
+                "statusCode": 500, 
+                "headers": headers, 
+                "body": json.dumps({
+                    "error": str(e), 
+                    "traceback": traceback.format_exc()
+                })
+            }
             
     return {"statusCode": 404, "headers": headers, "body": json.dumps({"message": "Not Found"})}
