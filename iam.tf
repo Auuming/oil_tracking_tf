@@ -52,7 +52,8 @@ resource "aws_iam_policy" "lambda_data_policy" {
         Effect = "Allow",
         Action = [
           "sns:Publish",
-          "sns:Subscribe"
+          "sns:Subscribe",
+          "sns:ListSubscriptionsByTopic"
         ],
         Resource = aws_sns_topic.alerts.arn
       }

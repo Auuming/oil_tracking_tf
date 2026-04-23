@@ -23,6 +23,87 @@ redis_host = os.getenv('REDIS_ENDPOINT')
 redis_port = int(os.getenv('REDIS_PORT', 6379)) if os.getenv('REDIS_PORT') else 6379
 cache = redis.Redis(host=redis_host, port=redis_port, decode_responses=True) if redis_host else None
 
+def ensure_email_subscription(topic_arn, email):
+    email = (email or "").strip().lower()
+    if not topic_arn or not email:
+        return {
+            "ok": False,
+            "reason": "missing_input",
+            "already_confirmed": False,
+            "resent_confirmation": False,
+            "confirmed_count": 0,
+            "pending_count": 0,
+            "deleted_stale_count": 0,
+        }
+
+    paginator = sns.get_paginator("list_subscriptions_by_topic")
+
+    confirmed_subscriptions = []
+    pending_subscriptions = []
+    other_unconfirmed_subscriptions = []
+
+    for page in paginator.paginate(TopicArn=topic_arn):
+        for sub in page.get("Subscriptions", []):
+            protocol = (sub.get("Protocol") or "").lower()
+            endpoint = (sub.get("Endpoint") or "").strip().lower()
+            sub_arn = sub.get("SubscriptionArn")
+
+            if protocol != "email" or endpoint != email:
+                continue
+
+            if sub_arn == "PendingConfirmation":
+                pending_subscriptions.append(sub)
+            elif sub_arn:
+                confirmed_subscriptions.append(sub)
+            else:
+                other_unconfirmed_subscriptions.append(sub)
+
+    deleted_stale_count = 0
+
+    # If there is already a confirmed subscription, stop here
+    if confirmed_subscriptions:
+        # best effort cleanup for odd stale non-pending ARN entries
+        for sub in other_unconfirmed_subscriptions:
+            sub_arn = sub.get("SubscriptionArn")
+            if sub_arn and sub_arn != "PendingConfirmation":
+                try:
+                    sns.unsubscribe(SubscriptionArn=sub_arn)
+                    deleted_stale_count += 1
+                except Exception:
+                    pass
+
+        return {
+            "ok": True,
+            "reason": "already_confirmed",
+            "already_confirmed": True,
+            "resent_confirmation": False,
+            "confirmed_count": len(confirmed_subscriptions),
+            "pending_count": len(pending_subscriptions),
+            "deleted_stale_count": deleted_stale_count,
+            "subscription_arn": confirmed_subscriptions[0].get("SubscriptionArn"),
+        }
+
+    # No confirmed subscription yet -> resend confirmation
+    response = sns.subscribe(
+        TopicArn=topic_arn,
+        Protocol="email",
+        Endpoint=email,
+        Attributes={
+            "FilterPolicy": json.dumps({"target_email": [email]})
+        }
+    )
+
+    return {
+        "ok": True,
+        "reason": "confirmation_resent",
+        "already_confirmed": False,
+        "resent_confirmation": True,
+        "confirmed_count": 0,
+        "pending_count": len(pending_subscriptions) + 1,
+        "deleted_stale_count": deleted_stale_count,
+        "subscription_arn": response.get("SubscriptionArn"),
+    }
+
 def lambda_handler(event, context):
     route_key = event.get('routeKey', '')
     headers = {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"}
@@ -119,17 +200,28 @@ def lambda_handler(event, context):
                 users_table.put_item(Item={'Email': email, 'AlertConfig': alert_configs})
                 
                 # Process SNS Subscription
+                subscription_result = None
                 if alerts_topic_arn:
-                    sns.subscribe(
-                        TopicArn=alerts_topic_arn, 
-                        Protocol='email', 
-                        Endpoint=email,
-                        Attributes={
-                            'FilterPolicy': json.dumps({'target_email': [email]})
-                        }
-                    )
+                    subscription_result = ensure_email_subscription(alerts_topic_arn, email)
                     
-                return {"statusCode": 200, "headers": headers, "body": json.dumps({"message": f"Alert saved for {email}! Please ensure you have confirmed your SNS subscription."})}
+                message = f"Alert saved for {email}!"
+
+                if alerts_topic_arn:
+                    if not subscription_result or not subscription_result.get("ok"):
+                        message += " Could not verify email notification subscription status."
+                    elif subscription_result.get("already_confirmed"):
+                        message += " Email notifications are already enabled for this address."
+                    elif subscription_result.get("resent_confirmation"):
+                        pending_count = subscription_result.get("pending_count", 1)
+                        message += " A confirmation email was sent. Please confirm it to enable notifications."
+                        if pending_count > 1:
+                            message += " (There are older unconfirmed requests for this email. Only one confirmed subscription is needed.)"
+                
+                return {
+                    "statusCode": 200,
+                    "headers": headers,
+                    "body": json.dumps({"message": message})
+                }
             else:
                 return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "Missing email in request body."})}
 
