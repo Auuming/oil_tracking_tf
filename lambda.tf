@@ -36,8 +36,8 @@ resource "aws_lambda_function" "api" {
       USERS_TABLE      = aws_dynamodb_table.users.name
       PRICES_TABLE     = aws_dynamodb_table.prices.name
       ALERTS_TOPIC_ARN = aws_sns_topic.alerts.arn
-      # REDIS_ENDPOINT = aws_elasticache_cluster.redis.cache_nodes[0].address
-      # REDIS_PORT     = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
+      REDIS_ENDPOINT = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT     = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
     }
   }
 
@@ -54,12 +54,10 @@ resource "aws_lambda_function" "fetch" {
   layers        = [var.pandas_layer_arn]
   timeout       = 60
 
-  /*
   vpc_config {
     subnet_ids         = [aws_subnet.private.id]
     security_group_ids = [aws_security_group.lambda_sg.id]
   }
-  */
 
   environment {
     variables = {
@@ -67,8 +65,8 @@ resource "aws_lambda_function" "fetch" {
       USERS_TABLE      = aws_dynamodb_table.users.name
       PRICES_TABLE     = aws_dynamodb_table.prices.name
       SCRAPER_API_URL  = "${aws_apigatewayv2_api.http.api_endpoint}/latest"
-      # REDIS_ENDPOINT = aws_elasticache_cluster.redis.cache_nodes[0].address
-      # REDIS_PORT     = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
+      REDIS_ENDPOINT = aws_elasticache_cluster.redis.cache_nodes[0].address
+      REDIS_PORT     = tostring(aws_elasticache_cluster.redis.cache_nodes[0].port)
     }
   }
 
