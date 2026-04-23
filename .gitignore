@@ -6,3 +6,4 @@
 .venv/
 lambda/api_handler.zip
 lambda/fetch_prices.zip
+lambda/latest_prices.zip

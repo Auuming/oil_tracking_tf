@@ -22,11 +22,12 @@ resource "aws_subnet" "private" {
 # Private Route Table that points internet traffic to the NAT Gateway
 resource "aws_route_table" "private" {
   vpc_id = data.aws_vpc.default.id
-
+  
   route {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main.id
   }
+  
   tags = merge(local.tags, { Name = "${local.name}-private-rt" })
 }
 

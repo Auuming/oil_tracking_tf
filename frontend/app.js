@@ -1,90 +1,3 @@
-const DEMO_HISTORY = [
-  {
-    retailer: "PTT",
-    oilType: "Gasohol 95",
-    points: [
-      { time: "2026-04-01 09:00", price: 36.8 },
-      { time: "2026-04-02 09:00", price: 36.9 },
-      { time: "2026-04-03 09:00", price: 37.0 },
-      { time: "2026-04-04 09:00", price: 37.05 },
-      { time: "2026-04-05 09:00", price: 37.15 },
-      { time: "2026-04-06 09:00", price: 37.24 },
-      { time: "2026-04-07 09:00", price: 37.30 },
-      { time: "2026-04-08 09:00", price: 37.35 }
-    ]
-  },
-  {
-    retailer: "PTT",
-    oilType: "Diesel B7",
-    points: [
-      { time: "2026-04-01 09:00", price: 31.4 },
-      { time: "2026-04-02 09:00", price: 31.5 },
-      { time: "2026-04-03 09:00", price: 31.62 },
-      { time: "2026-04-04 09:00", price: 31.7 },
-      { time: "2026-04-05 09:00", price: 31.82 },
-      { time: "2026-04-06 09:00", price: 31.94 },
-      { time: "2026-04-07 09:00", price: 32.00 },
-      { time: "2026-04-08 09:00", price: 32.05 }
-    ]
-  },
-  {
-    retailer: "Bangchak",
-    oilType: "Gasohol 95",
-    points: [
-      { time: "2026-04-01 09:00", price: 36.7 },
-      { time: "2026-04-02 09:00", price: 36.78 },
-      { time: "2026-04-03 09:00", price: 36.9 },
-      { time: "2026-04-04 09:00", price: 36.95 },
-      { time: "2026-04-05 09:00", price: 37.05 },
-      { time: "2026-04-06 09:00", price: 37.14 },
-      { time: "2026-04-07 09:00", price: 37.20 },
-      { time: "2026-04-08 09:00", price: 37.25 }
-    ]
-  },
-  {
-    retailer: "Bangchak",
-    oilType: "Diesel",
-    points: [
-      { time: "2026-04-01 09:00", price: 31.2 },
-      { time: "2026-04-02 09:00", price: 31.28 },
-      { time: "2026-04-03 09:00", price: 31.38 },
-      { time: "2026-04-04 09:00", price: 31.44 },
-      { time: "2026-04-05 09:00", price: 31.56 },
-      { time: "2026-04-06 09:00", price: 31.64 },
-      { time: "2026-04-07 09:00", price: 31.70 },
-      { time: "2026-04-08 09:00", price: 31.75 }
-    ]
-  },
-  {
-    retailer: "Shell",
-    oilType: "Gasohol 95",
-    points: [
-      { time: "2026-04-01 09:00", price: 37.6 },
-      { time: "2026-04-02 09:00", price: 37.72 },
-      { time: "2026-04-03 09:00", price: 37.82 },
-      { time: "2026-04-04 09:00", price: 37.9 },
-      { time: "2026-04-05 09:00", price: 37.96 },
-      { time: "2026-04-06 09:00", price: 38.04 },
-      { time: "2026-04-07 09:00", price: 38.10 },
-      { time: "2026-04-08 09:00", price: 38.15 }
-    ]
-  },
-  {
-    retailer: "Shell",
-    oilType: "Diesel",
-    points: [
-      { time: "2026-04-01 09:00", price: 31.8 },
-      { time: "2026-04-02 09:00", price: 31.92 },
-      { time: "2026-04-03 09:00", price: 32.0 },
-      { time: "2026-04-04 09:00", price: 32.08 },
-      { time: "2026-04-05 09:00", price: 32.16 },
-      { time: "2026-04-06 09:00", price: 32.24 },
-      { time: "2026-04-07 09:00", price: 32.30 },
-      { time: "2026-04-08 09:00", price: 32.35 }
-    ]
-  }
-];
-
 const retailerSelect = document.getElementById("retailerSelect");
 const oilTypeSelect = document.getElementById("oilTypeSelect");
 const alertRetailerSelect = document.getElementById("alertRetailerSelect");
@@ -105,7 +18,7 @@ let selectedSeriesKeys = [];
 let chart = null;
 
 function uniqueValues(items, key) {
-  return [...new Set(items.map(item => item[key]))].sort();
+  return [...new Set(items.map(item => item[key]))].sort((a, b) => a.localeCompare(b, "th"));
 }
 
 function buildSeriesKey(retailer, oilType) {
@@ -117,8 +30,12 @@ function parseSeriesKey(key) {
   return { retailer, oilType };
 }
 
+function formatOilTypeLabel(oilType) {
+  return (oilType || "").replace(/_/g, " ");
+}
+
 function getSeriesLabel(series) {
-  return `${series.retailer} - ${series.oilType}`;
+  return `${series.retailer} - ${formatOilTypeLabel(series.oilType)}`;
 }
 
 function getSeriesByKey(key) {
@@ -126,12 +43,24 @@ function getSeriesByKey(key) {
   return allHistory.find(item => item.retailer === retailer && item.oilType === oilType);
 }
 
-function setSelectOptions(selectElement, values) {
+function setSelectOptions(selectElement, values, formatter = value => value) {
   selectElement.innerHTML = "";
+
+  if (!values.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No data available";
+    selectElement.appendChild(option);
+    selectElement.disabled = true;
+    return;
+  }
+
+  selectElement.disabled = false;
+
   values.forEach(value => {
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value;
+    option.textContent = formatter(value);
     selectElement.appendChild(option);
   });
 }
@@ -140,8 +69,7 @@ function updateOilTypesDropdown(retailerSelectElem, oilTypeSelectElem) {
   const selectedRetailer = retailerSelectElem.value;
   const retailerData = allHistory.filter(item => item.retailer === selectedRetailer);
   const availableOilTypes = uniqueValues(retailerData, "oilType");
-  
-  setSelectOptions(oilTypeSelectElem, availableOilTypes);
+  setSelectOptions(oilTypeSelectElem, availableOilTypes, formatOilTypeLabel);
 }
 
 function populateControls() {
@@ -149,23 +77,39 @@ function populateControls() {
 
   setSelectOptions(retailerSelect, retailers);
   setSelectOptions(alertRetailerSelect, retailers);
-  
+
   if (retailers.length > 0) {
     updateOilTypesDropdown(retailerSelect, oilTypeSelect);
     updateOilTypesDropdown(alertRetailerSelect, alertOilTypeSelect);
+  } else {
+    setSelectOptions(oilTypeSelect, [], formatOilTypeLabel);
+    setSelectOptions(alertOilTypeSelect, [], formatOilTypeLabel);
   }
 }
 
 function getLatestItems() {
-  return allHistory.map(series => {
-    const latestPoint = series.points[series.points.length - 1];
-    return {
-      retailer: series.retailer,
-      oilType: series.oilType,
-      price: latestPoint.price,
-      updatedAt: latestPoint.time
-    };
-  });
+  return allHistory
+    .map(series => {
+      const latestPoint = series.points[series.points.length - 1];
+      if (!latestPoint) {
+        return null;
+      }
+
+      return {
+        retailer: series.retailer,
+        oilType: series.oilType,
+        price: Number(latestPoint.price),
+        updatedAt: latestPoint.time
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const retailerCompare = a.retailer.localeCompare(b.retailer, "en");
+      if (retailerCompare !== 0) {
+        return retailerCompare;
+      }
+      return a.oilType.localeCompare(b.oilType, "th");
+    });
 }
 
 function renderLatestSummary() {
@@ -206,11 +150,18 @@ function renderLatestTable() {
   const latestItems = getLatestItems();
   latestPriceTableBody.innerHTML = "";
 
+  if (!latestItems.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="4" class="empty-state">No data available.</td>`;
+    latestPriceTableBody.appendChild(row);
+    return;
+  }
+
   latestItems.forEach(item => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${item.retailer}</td>
-      <td>${item.oilType}</td>
+      <td>${formatOilTypeLabel(item.oilType)}</td>
       <td>${item.price.toFixed(2)}</td>
       <td>${item.updatedAt}</td>
     `;
@@ -267,7 +218,7 @@ function renderChart() {
         maintainAspectRatio: false
       }
     });
-    chartStatus.textContent = "No series selected.";
+    chartStatus.textContent = allHistory.length ? "No series selected." : "No data available.";
     return;
   }
 
@@ -278,7 +229,7 @@ function renderChart() {
     label: getSeriesLabel(series),
     data: labels.map(dateLabel => {
       const point = series.points.find(p => p.time === dateLabel);
-      return point ? point.price : null; 
+      return point ? point.price : null;
     }),
     tension: 0.25,
     spanGaps: true
@@ -325,6 +276,11 @@ function renderChart() {
 function addSelectedSeries() {
   const key = buildSeriesKey(retailerSelect.value, oilTypeSelect.value);
 
+  if (!retailerSelect.value || !oilTypeSelect.value) {
+    chartStatus.textContent = "No data available.";
+    return;
+  }
+
   if (!getSeriesByKey(key)) {
     chartStatus.textContent = "Selected combination is not available.";
     return;
@@ -347,62 +303,31 @@ function clearAllSeries() {
 }
 
 async function fetchHistory() {
-  if (!CONFIG.API_BASE_URL) {
-    backendStatus.textContent = "Demo Mode";
-    return { items: DEMO_HISTORY, mode: "demo" };
+  if (!CONFIG || !CONFIG.API_BASE_URL) {
+    throw new Error("CONFIG.API_BASE_URL is not set.");
   }
 
-  try {
-    const response = await fetch(`${CONFIG.API_BASE_URL}/prices`);
-    if (!response.ok) {
-      throw new Error(`History request failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const apiItems = data.items || [];
-    const mergedItems = [];
-    const demoCopy = JSON.parse(JSON.stringify(DEMO_HISTORY));
-
-    apiItems.forEach(apiItem => {
-      const demoMatch = demoCopy.find(
-        d => d.retailer.trim().toUpperCase() === apiItem.retailer.trim().toUpperCase() && 
-             d.oilType.trim().toUpperCase() === apiItem.oilType.trim().toUpperCase()
-      );
-
-      if (demoMatch) {
-        apiItem.points = [...demoMatch.points, ...apiItem.points];
-
-        const index = demoCopy.indexOf(demoMatch);
-        demoCopy.splice(index, 1);
-      }
-      
-      mergedItems.push(apiItem);
-    });
-
-    mergedItems.push(...demoCopy);
-
-    backendStatus.textContent = "Connected";
-    console.log(`mergedItems:`, mergedItems);
-    return { items: mergedItems, mode: "api" };
-
-  } catch (error) {
-    console.error("API connection failed:", error);
-    // If the API fails for any reason, safely fall back to pure Demo Mode
-    backendStatus.textContent = "Demo Mode (API Failed)";
-    return { items: DEMO_HISTORY, mode: "demo" };
+  const response = await fetch(`${CONFIG.API_BASE_URL}/prices`);
+  if (!response.ok) {
+    throw new Error(`History request failed with status ${response.status}`);
   }
+
+  const data = await response.json();
+  return data.items || [];
 }
 
 async function loadData() {
   chartStatus.textContent = "Loading data...";
+  backendStatus.textContent = "Connecting...";
 
   try {
-    const result = await fetchHistory();
-    allHistory = result.items;
+    allHistory = await fetchHistory();
 
     populateControls();
     renderLatestSummary();
     renderLatestTable();
+
+    selectedSeriesKeys = selectedSeriesKeys.filter(key => Boolean(getSeriesByKey(key)));
 
     if (!selectedSeriesKeys.length && allHistory.length) {
       selectedSeriesKeys = [buildSeriesKey(allHistory[0].retailer, allHistory[0].oilType)];
@@ -411,18 +336,32 @@ async function loadData() {
     renderSelectedChips();
     renderChart();
 
-    if (result.mode === "demo") {
-      chartStatus.textContent = "Loaded demo data. Backend not connected yet.";
+    backendStatus.textContent = "Connected";
+    if (!allHistory.length) {
+      chartStatus.textContent = "Connected, but no historical data is available yet.";
     }
   } catch (error) {
     console.error(error);
-    chartStatus.textContent = "Failed to load data.";
-    backendStatus.textContent = "Error";
+    allHistory = [];
+    populateControls();
+    renderLatestSummary();
+    renderLatestTable();
+    selectedSeriesKeys = [];
+    renderSelectedChips();
+    renderChart();
+    chartStatus.textContent = "Failed to load data from the API.";
+    backendStatus.textContent = "Unavailable";
   }
 }
 
 async function submitAlert(event) {
   event.preventDefault();
+
+  if (!CONFIG || !CONFIG.API_BASE_URL) {
+    alertResult.className = "alert-box";
+    alertResult.textContent = "CONFIG.API_BASE_URL is not set.";
+    return;
+  }
 
   const payload = {
     email: document.getElementById("emailInput").value.trim(),
@@ -438,13 +377,6 @@ async function submitAlert(event) {
     return;
   }
 
-  if (!CONFIG.API_BASE_URL) {
-    alertResult.className = "alert-box success";
-    alertResult.textContent =
-      `Demo mode: alert prepared for ${payload.email} | ${payload.retailer} | ${payload.oilType} ${payload.condition} ${payload.targetPrice.toFixed(2)} THB/L`;
-    return;
-  }
-
   try {
     const response = await fetch(`${CONFIG.API_BASE_URL}/alerts`, {
       method: "POST",
@@ -457,7 +389,7 @@ async function submitAlert(event) {
     const result = await response.json();
 
     if (!response.ok) {
-      throw new Error(result.message || "Failed to create alert");
+      throw new Error(result.message || result.error || "Failed to create alert");
     }
 
     alertResult.className = "alert-box success";
