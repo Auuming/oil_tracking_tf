@@ -112,6 +112,11 @@ function getLatestItems() {
     });
 }
 
+function getPointDateLabel(point) {
+  const raw = point?.time || "";
+  return raw.slice(0, 10);
+}
+
 function renderLatestSummary() {
   const latestItems = getLatestItems();
 
@@ -200,7 +205,6 @@ function renderSelectedChips() {
 
 function renderChart() {
   const canvas = document.getElementById("priceChart");
-
   if (chart) {
     chart.destroy();
   }
@@ -213,23 +217,27 @@ function renderChart() {
     chart = new Chart(canvas, {
       type: "line",
       data: { labels: [], datasets: [] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false
-      }
+      options: { responsive: true, maintainAspectRatio: false }
     });
     chartStatus.textContent = allHistory.length ? "No series selected." : "No data available.";
     return;
   }
 
-  const allDates = selectedSeries.flatMap(s => s.points.map(p => p.time));
+  const allDates = selectedSeries.flatMap(series =>
+    series.points.map(point => getPointDateLabel(point))
+  );
+
   const labels = [...new Set(allDates)].sort();
 
   const datasets = selectedSeries.map(series => ({
     label: getSeriesLabel(series),
     data: labels.map(dateLabel => {
-      const point = series.points.find(p => p.time === dateLabel);
-      return point ? point.price : null;
+      const pointForDate = [...series.points]
+        .filter(point => getPointDateLabel(point) === dateLabel)
+        .sort((a, b) => (a.time || "").localeCompare(b.time || ""))
+        .pop();
+
+      return pointForDate ? pointForDate.price : null;
     }),
     tension: 0.25,
     spanGaps: true
@@ -237,35 +245,15 @@ function renderChart() {
 
   chart = new Chart(canvas, {
     type: "line",
-    data: {
-      labels,
-      datasets
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: {
-        mode: "index",
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          position: "top"
-        }
-      },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "top" } },
       scales: {
-        x: {
-          title: {
-            display: true,
-            text: "Time"
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: "Price (THB/L)"
-          }
-        }
+        x: { title: { display: true, text: "Date" } },
+        y: { title: { display: true, text: "Price (THB/L)" } }
       }
     }
   });
