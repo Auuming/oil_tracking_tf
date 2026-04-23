@@ -20,12 +20,7 @@ cache = redis.Redis(host=redis_host, port=redis_port, decode_responses=True) if 
 
 
 def format_retailer(raw_name):
-    raw_name = raw_name.lower()
-    if raw_name == 'bcp':
-        return 'Bangchak'
-    if raw_name in ['ptt', 'irpc', 'pt']:
-        return raw_name.upper()
-    return raw_name.title()
+    return str(raw_name).strip().upper()
 
 
 
