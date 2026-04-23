@@ -9,7 +9,7 @@ resource "aws_apigatewayv2_api" "http" {
     max_age       = 300
   }
 
-  tags          = local.tags
+  tags = local.tags
 }
 
 resource "aws_apigatewayv2_integration" "lambda_api" {
@@ -48,7 +48,8 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http.id
   name        = "$default"
   auto_deploy = true
-  tags        = local.tags
+
+  tags = local.tags
 }
 
 resource "aws_lambda_permission" "allow_apigw" {
