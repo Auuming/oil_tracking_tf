@@ -10,7 +10,8 @@ output "frontend_url" {
 output "sns_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
-
+/*
 output "redis_endpoint" {
   value = aws_elasticache_cluster.redis.cache_nodes[0].address
 }
+*/

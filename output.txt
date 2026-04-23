@@ -1,0 +1,4 @@
+api_base_url = "https://iuilfkgmn2.execute-api.ap-northeast-1.amazonaws.com"
+frontend_url = "https://d1l7v5hn6lzhdx.cloudfront.net"
+redis_endpoint = "oil-price-tracker-dev-redis.95fkhj.0001.apne1.cache.amazonaws.com"
+sns_topic_arn = "arn:aws:sns:ap-northeast-1:672508880932:oil-price-tracker-dev-alerts"

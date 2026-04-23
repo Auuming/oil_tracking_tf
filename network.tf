@@ -1,3 +1,4 @@
+/*
 # Elastic IP for the NAT Gateway
 resource "aws_eip" "nat" {
   domain = "vpc"
@@ -10,7 +11,7 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = data.aws_subnets.default.ids[0]
   tags          = merge(local.tags, { Name = "${local.name}-nat" })
 }
-
+*/
 # NEW Private Subnet for the Lambda function
 resource "aws_subnet" "private" {
   vpc_id            = data.aws_vpc.default.id
@@ -22,11 +23,12 @@ resource "aws_subnet" "private" {
 # Private Route Table that points internet traffic to the NAT Gateway
 resource "aws_route_table" "private" {
   vpc_id = data.aws_vpc.default.id
-
+  /*
   route {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main.id
   }
+  */
   tags = merge(local.tags, { Name = "${local.name}-private-rt" })
 }
 

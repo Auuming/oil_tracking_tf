@@ -1,3 +1,4 @@
+/*
 resource "aws_elasticache_subnet_group" "redis" {
   name       = "${local.name}-redis-subnet-group"
   subnet_ids = data.aws_subnets.default.ids
@@ -14,3 +15,4 @@ resource "aws_elasticache_cluster" "redis" {
   security_group_ids   = [aws_security_group.redis.id]
   tags                 = local.tags
 }
+*/
